@@ -38,6 +38,8 @@ import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 
+import javax.annotation.Nullable;
+
 public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
 
   static enum Fields {
@@ -85,6 +87,9 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
   private BlockPos targetPos = BlockPos.ZERO;
   private boolean directionIsUp = false;
 
+  @Nullable
+  private Shape shape;
+
   public TileMiner(BlockPos pos, BlockState state) {
     super(TileRegistry.MINER.get(), pos, state);
   }
@@ -120,6 +125,16 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
   }
 
   @Override
+  public void setBlockState(BlockState blockState) {
+    super.setBlockState(blockState);
+    invalidateShape();
+  }
+
+  private void invalidateShape() {
+    shape = null;
+  }
+
+  @Override
   public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
     if (cap == ForgeCapabilities.ENERGY && POWERCONF.get() > 0) {
       return energyCap.cast();
@@ -138,6 +153,7 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
     directionIsUp = tag.getBoolean("directionIsUp");
     energy.deserializeNBT(tag.getCompound(NBTENERGY));
     inventory.deserializeNBT(tag.getCompound(NBTINV));
+    invalidateShape();
     super.load(tag);
   }
 
@@ -163,7 +179,7 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
     }
     try {
       TileBlockEntityCyclic.tryEquipItem(inventoryCap, fakePlayer, 0, InteractionHand.MAIN_HAND);
-      List<BlockPos> shape = getShape();
+      List<BlockPos> shape = getShape().blocks();
       if (shape.size() == 0) {
         return;
       }
@@ -187,7 +203,7 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
       isCurrentlyMining = true;
       //then keep current target
     }
-    else { // no valid target, back out 
+    else { // no valid target, back out
       updateTargetPos(shape);
       resetProgress();
     }
@@ -221,7 +237,7 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
         }
       }
     }
-    else { //is mining is false 
+    else { //is mining is false
       level.destroyBlockProgress(fakePlayer.get().getUUID().hashCode(), targetPos, (int) (curBlockDamage * 10.0F) - 1);
     }
     return false;
@@ -302,27 +318,26 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
     return diff * height;
   }
 
-  public List<BlockPos> getShape() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalFull(center, radius);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
+  public Shape getShape() {
+    if (shape == null) {
+      shape = computeShape();
     }
     return shape;
   }
 
-  public List<BlockPos> getShapeHollow() {
+  private Shape computeShape() {
     BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalHollow(center, radius);
+    List<BlockPos> shape = ShapeUtil.squareHorizontalFull(center, radius);
+    List<BlockPos> hollowShape = ShapeUtil.squareHorizontalHollow(center, radius);
     int heightWithDirection = heightWithDirection();
     if (heightWithDirection != 0) {
       shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
+      hollowShape = ShapeUtil.repeatShapeByHeight(hollowShape, heightWithDirection);
     }
     if (targetPos != null) {
-      shape.add(targetPos);
+      hollowShape.add(targetPos);
     }
-    return shape;
+    return new Shape(List.copyOf(shape), List.copyOf(hollowShape));
   }
 
   @Override
@@ -361,5 +376,9 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
         radius = Math.min(value, MAX_SIZE);
       break;
     }
+    invalidateShape();
+  }
+
+  public record Shape(List<BlockPos> blocks, List<BlockPos> hollowBlocks) {
   }
 }

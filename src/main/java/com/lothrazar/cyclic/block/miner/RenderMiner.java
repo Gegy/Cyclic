@@ -18,10 +18,10 @@ public class RenderMiner implements BlockEntityRenderer<TileMiner> {
   public void render(TileMiner te, float v, PoseStack matrixStack, MultiBufferSource iRenderTypeBuffer, int partialTicks, int destroyStage) {
     int previewType = te.getField(TileMiner.Fields.RENDER.ordinal());
     if (previewType == PreviewOutlineType.SHADOW.ordinal()) {
-      RenderBlockUtils.renderOutline(te.getBlockPos(), te.getShapeHollow(), matrixStack, 0.9F, ClientConfigCyclic.getColor(te));
+      RenderBlockUtils.renderOutline(te.getBlockPos(), te.getShape().hollowBlocks(), matrixStack, 0.9F, ClientConfigCyclic.getColor(te));
     }
     else if (PreviewOutlineType.WIREFRAME.ordinal() == previewType) {
-      for (BlockPos crd : te.getShapeHollow()) {
+      for (BlockPos crd : te.getShape().hollowBlocks()) {
         RenderBlockUtils.createBox(matrixStack, crd, Vec3.atLowerCornerOf(te.getBlockPos()));
       }
     }
