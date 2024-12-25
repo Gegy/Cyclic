@@ -26,6 +26,7 @@ package com.lothrazar.cyclic.block.crafter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import javax.annotation.Nullable;
 import com.lothrazar.cyclic.block.TileBlockEntityCyclic;
 import com.lothrazar.cyclic.data.PreviewOutlineType;
 import com.lothrazar.cyclic.registry.BlockRegistry;
@@ -73,10 +74,23 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
   ItemStackHandler outHandler = new ItemStackHandler(IO_SIZE);
   private final LazyOptional<IItemHandler> input = LazyOptional.of(() -> inputHandler);
   private final LazyOptional<IItemHandler> output = LazyOptional.of(() -> outHandler);
-  private final LazyOptional<IItemHandler> gridCap = LazyOptional.of(() -> new ItemStackHandler(GRID_SIZE));
+  private final LazyOptional<IItemHandler> gridCap = LazyOptional.of(() -> new ItemStackHandler(GRID_SIZE) {
+    @Override
+    protected void onLoad() {
+      assignedRecipe = null;
+    }
+
+    @Override
+    protected void onContentsChanged(int slot) {
+      assignedRecipe = null;
+    }
+  });
   private final LazyOptional<IItemHandler> preview = LazyOptional.of(() -> new ItemStackHandler(1));
   private ItemStackHandlerWrapper inventoryWrapper = new ItemStackHandlerWrapper(inputHandler, outHandler);
   private final LazyOptional<IItemHandler> inventoryCap = LazyOptional.of(() -> inventoryWrapper);
+  @Nullable
+  private AssignedRecipe assignedRecipe;
+
   //
   public static final int IO_NUM_ROWS = 5;
   public static final int IO_NUM_COLS = 2;
@@ -143,15 +157,15 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
     if (timer < 0) {
       timer = 0;
     }
-    Recipe<CraftingContainer> lastValidRecipe = findMatchingRecipe(null);
-    if (lastValidRecipe == null) {
-      //reset 
+    CraftingRecipe assignedRecipe = getAssignedRecipe();
+    if (assignedRecipe == null) {
+      //reset
       this.timer = TIMER_FULL;
       setPreviewSlot(ItemStack.EMPTY);
     }
     else {
-      //recipes not null and it matches  
-      ItemStack recipeOutput = lastValidRecipe.getResultItem(level.registryAccess()).copy();
+      //recipes not null and it matches
+      ItemStack recipeOutput = assignedRecipe.getResultItem(level.registryAccess()).copy();
       setPreviewSlot(recipeOutput);
       //if we have space for the output, then go ahead
       if (hasFreeSpace(outHandler, recipeOutput)) {
@@ -162,7 +176,7 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
         if (--timer > 0) { //Get recipe before processing
           return;
         }
-        if (doCraft(lastValidRecipe)) {
+        if (doCraft(assignedRecipe)) {
           //reset the timer
           this.timer = TIMER_FULL;
           //pay energy cost
@@ -170,7 +184,7 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
           //get the result item
           depositOutput(recipeOutput, outHandler);
           //stuff like empty buckets happen down here
-          NonNullList<ItemStack> rem = lastValidRecipe.getRemainingItems(craftMatrix);
+          NonNullList<ItemStack> rem = assignedRecipe.getRemainingItems(craftMatrix);
           for (int i = 0; i < rem.size(); ++i) {
             ItemStack s = rem.get(i);
             if (!s.isEmpty() && s.getItem() == craftMatrix.getItem(i).getItem()) {
@@ -183,6 +197,18 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
         }
       }
     }
+  }
+
+  @Nullable
+  private CraftingRecipe getAssignedRecipe() {
+    if (assignedRecipe == null) {
+      IItemHandler gridHandler = this.gridCap.orElse(null);
+      for (int i = 0; i < gridHandler.getSlots(); i++) {
+        craftMatrix.setItem(i, gridHandler.getStackInSlot(i).copy());//fake items anyway. but also jus do a copy
+      }
+      assignedRecipe = new AssignedRecipe(level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftMatrix, level).orElse(null));
+    }
+    return assignedRecipe.recipe();
   }
 
   private ItemStack depositOutput(ItemStack recipeOutput, ItemStackHandler dest) {
@@ -290,14 +316,6 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
         itemHandler.insertItem(entry.getKey(), stack, false);
       }
     }
-  }
-
-  private Recipe<CraftingContainer> findMatchingRecipe(ArrayList<ItemStack> itemStacksInGrid) {
-    IItemHandler gridHandler = this.gridCap.orElse(null);
-    for (int i = 0; i < gridHandler.getSlots(); i++) {
-      craftMatrix.setItem(i, gridHandler.getStackInSlot(i).copy());//fake items anyway. but also jus do a copy
-    }
-    return level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftMatrix, level).orElse(null);
   }
 
   public static class FakeContainer extends AbstractContainerMenu {
@@ -424,5 +442,8 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
         this.render = value % PreviewOutlineType.values().length;
       break;
     }
+  }
+
+  private record AssignedRecipe(@Nullable CraftingRecipe recipe) {
   }
 }
