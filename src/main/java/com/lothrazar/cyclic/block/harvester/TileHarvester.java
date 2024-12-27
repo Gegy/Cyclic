@@ -1,13 +1,14 @@
 package com.lothrazar.cyclic.block.harvester;
 
 import java.util.List;
+import javax.annotation.Nullable;
 import com.lothrazar.cyclic.block.TileBlockEntityCyclic;
 import com.lothrazar.cyclic.data.PreviewOutlineType;
 import com.lothrazar.cyclic.registry.BlockRegistry;
 import com.lothrazar.cyclic.registry.TileRegistry;
+import com.lothrazar.cyclic.util.BlockShape;
 import com.lothrazar.cyclic.util.HarvestUtil;
 import com.lothrazar.library.cap.CustomEnergyStorage;
-import com.lothrazar.library.util.ShapeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -45,6 +46,9 @@ public class TileHarvester extends TileBlockEntityCyclic implements MenuProvider
   CustomEnergyStorage energy = new CustomEnergyStorage(MAX_ENERGY, MAX_ENERGY / 4);
   private LazyOptional<IEnergyStorage> energyCap = LazyOptional.of(() -> energy);
 
+  @Nullable
+  private BlockShape shape;
+
   public TileHarvester(BlockPos pos, BlockState state) {
     super(TileRegistry.HARVESTER.get(), pos, state);
     timer = 1;
@@ -74,8 +78,7 @@ public class TileHarvester extends TileBlockEntityCyclic implements MenuProvider
       return;
     }
     //get and update target
-    List<BlockPos> shape = this.getShape();
-    targetPos = getShapeTarget(shape);
+    targetPos = getShapeTarget(getShape().blocks());
     shapeIndex++;
     //does it exist
     if (targetPos != null && HarvestUtil.tryHarvestSingle(this.level, targetPos)) {
@@ -103,27 +106,9 @@ public class TileHarvester extends TileBlockEntityCyclic implements MenuProvider
     return diff * height;
   }
 
-  //for harvest
-  public List<BlockPos> getShape() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.cubeSquareBase(center, radius, 0);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-    }
-    return shape;
-  }
-
-  //for render
-  public List<BlockPos> getShapeHollow() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalHollow(center, radius);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-    }
-    if (targetPos != null) {
-      shape.add(targetPos);
+  public BlockShape getShape() {
+    if (shape == null) {
+      shape = BlockShape.create(getFacingShapeCenter(radius), radius, heightWithDirection(), targetPos);
     }
     return shape;
   }
@@ -169,12 +154,23 @@ public class TileHarvester extends TileBlockEntityCyclic implements MenuProvider
         height = Math.min(value, MAX_HEIGHT);
       break;
     }
+    invalidateShape();
   }
 
   @Override
   public void invalidateCaps() {
     energyCap.invalidate();
     super.invalidateCaps();
+  }
+
+  @Override
+  public void setBlockState(BlockState blockState) {
+    super.setBlockState(blockState);
+    invalidateShape();
+  }
+
+  private void invalidateShape() {
+    shape = null;
   }
 
   @Override
@@ -192,6 +188,7 @@ public class TileHarvester extends TileBlockEntityCyclic implements MenuProvider
     directionIsUp = tag.getBoolean("directionIsUp");
     shapeIndex = tag.getInt("shapeIndex");
     energy.deserializeNBT(tag.getCompound(NBTENERGY));
+    invalidateShape();
     super.load(tag);
   }
 

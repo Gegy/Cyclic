@@ -6,9 +6,9 @@ import com.lothrazar.cyclic.capabilities.block.FluidTankBase;
 import com.lothrazar.cyclic.data.PreviewOutlineType;
 import com.lothrazar.cyclic.registry.BlockRegistry;
 import com.lothrazar.cyclic.registry.TileRegistry;
+import com.lothrazar.cyclic.util.BlockShape;
 import com.lothrazar.cyclic.util.FluidHelpers.FluidAttributes;
 import com.lothrazar.library.cap.CustomEnergyStorage;
-import com.lothrazar.library.util.ShapeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -36,6 +36,8 @@ import net.minecraftforge.fluids.FluidType;
 import net.minecraftforge.fluids.capability.IFluidHandler.FluidAction;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
+
+import javax.annotation.Nullable;
 
 public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvider {
 
@@ -65,6 +67,9 @@ public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvi
   private LazyOptional<IItemHandler> inventoryCap = LazyOptional.of(() -> inventory);
   private LazyOptional<IEnergyStorage> energyCap = LazyOptional.of(() -> energy);
 
+  @Nullable
+  private BlockShape shape;
+
   public TileFluidCollect(BlockPos pos, BlockState state) {
     super(TileRegistry.COLLECTOR_FLUID.get(), pos, state);
     tank = new FluidTankBase(this, CAPACITY, p -> true);
@@ -92,8 +97,8 @@ public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvi
     //use air if its empty
     BlockState newState = Block.byItem(stack.getItem()).defaultBlockState();
     this.setLitProperty(true);
-    List<BlockPos> shape = this.getShapeFilled();
-    if (shape.size() == 0) {
+    List<BlockPos> shape = getShape().blocks();
+    if (shape.isEmpty()) {
       return;
     }
     //iterate around shape
@@ -141,28 +146,9 @@ public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvi
     return diff * height;
   }
 
-  //for render
-  public List<BlockPos> getShapeHollow() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalHollow(center, this.radius);
-    //
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-    }
-    if (targetPos != null) {
-      shape.add(targetPos);
-    }
-    return shape;
-  }
-
-  //for harvest
-  public List<BlockPos> getShapeFilled() {
-    BlockPos center = getFacingShapeCenter(radius);
-    int heightWithDirection = heightWithDirection();
-    List<BlockPos> shape = ShapeUtil.squareHorizontalFull(center, this.radius);
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
+  public BlockShape getShape() {
+    if (shape == null) {
+      shape = BlockShape.create(getFacingShapeCenter(radius), radius, heightWithDirection(), targetPos);
     }
     return shape;
   }
@@ -183,6 +169,16 @@ public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvi
     inventoryCap.invalidate();
     fluidCap.invalidate();
     super.invalidateCaps();
+  }
+
+  @Override
+  public void setBlockState(BlockState blockState) {
+    super.setBlockState(blockState);
+    invalidateShape();
+  }
+
+  private void invalidateShape() {
+    shape = null;
   }
 
   @Override
@@ -242,6 +238,7 @@ public class TileFluidCollect extends TileBlockEntityCyclic implements MenuProvi
         radius = Math.min(value, MAX_SIZE);
       break;
     }
+    invalidateShape();
   }
 
   @Override

@@ -2,13 +2,14 @@ package com.lothrazar.cyclic.block.forester;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
+import javax.annotation.Nullable;
 import com.lothrazar.cyclic.ModCyclic;
 import com.lothrazar.cyclic.block.TileBlockEntityCyclic;
 import com.lothrazar.cyclic.data.PreviewOutlineType;
 import com.lothrazar.cyclic.registry.BlockRegistry;
 import com.lothrazar.cyclic.registry.TileRegistry;
+import com.lothrazar.cyclic.util.BlockShape;
 import com.lothrazar.library.cap.CustomEnergyStorage;
-import com.lothrazar.library.util.ShapeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -66,6 +67,9 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
   private WeakReference<FakePlayer> fakePlayer;
   private int shapeIndex = 0;
 
+  @Nullable
+  private BlockShape shape;
+
   public TileForester(BlockPos pos, BlockState state) {
     super(TileRegistry.FORESTER.get(), pos, state);
     this.needsRedstone = 1;
@@ -97,7 +101,7 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
       }
     }
     //
-    List<BlockPos> shape = this.getShape();
+    List<BlockPos> shape = this.getShape().blocks();
     if (shape.size() == 0) {
       return;
     }
@@ -155,6 +159,16 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
   }
 
   @Override
+  public void setBlockState(BlockState blockState) {
+    super.setBlockState(blockState);
+    invalidateShape();
+  }
+
+  private void invalidateShape() {
+    shape = null;
+  }
+
+  @Override
   public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
     if (cap == ForgeCapabilities.ENERGY && POWERCONF.get() > 0) {
       return energyCap.cast();
@@ -172,6 +186,7 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
     radius = tag.getInt("radius");
     energy.deserializeNBT(tag.getCompound(NBTENERGY));
     inventory.deserializeNBT(tag.getCompound(NBTINV));
+    invalidateShape();
     super.load(tag);
   }
 
@@ -216,28 +231,9 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
     return diff * height;
   }
 
-  //for harvest
-  public List<BlockPos> getShape() {
-    //    List<BlockPos>    shape = ShapeUtil.cubeSquareBase(this.getCurrentFacingPos(radius + 1), radius, height);
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.cubeSquareBase(center, radius, 0);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-    }
-    return shape;
-  }
-
-  //for render
-  public List<BlockPos> getShapeHollow() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalHollow(center, radius);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-    }
-    if (targetPos != null) {
-      shape.add(targetPos);
+  public BlockShape getShape() {
+    if (shape == null) {
+      shape = BlockShape.create(getFacingShapeCenter(radius), radius, heightWithDirection(), targetPos);
     }
     return shape;
   }
@@ -288,6 +284,7 @@ public class TileForester extends TileBlockEntityCyclic implements MenuProvider 
         this.height = Math.min(value, MAX_HEIGHT);
       break;
     }
+    invalidateCaps();
   }
 
   public boolean hasSapling() {

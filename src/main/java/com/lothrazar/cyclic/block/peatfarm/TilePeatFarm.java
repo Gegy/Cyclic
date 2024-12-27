@@ -23,6 +23,7 @@
  ******************************************************************************/
 package com.lothrazar.cyclic.block.peatfarm;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import com.lothrazar.cyclic.block.PeatFuelBlock;
@@ -31,6 +32,7 @@ import com.lothrazar.cyclic.capabilities.block.FluidTankBase;
 import com.lothrazar.cyclic.data.PreviewOutlineType;
 import com.lothrazar.cyclic.registry.BlockRegistry;
 import com.lothrazar.cyclic.registry.TileRegistry;
+import com.lothrazar.cyclic.util.BlockShape;
 import com.lothrazar.cyclic.util.FluidHelpers.FluidAttributes;
 import com.lothrazar.library.cap.CustomEnergyStorage;
 import com.lothrazar.library.util.ShapeUtil;
@@ -86,7 +88,7 @@ public class TilePeatFarm extends TileBlockEntityCyclic implements MenuProvider 
   private LazyOptional<IEnergyStorage> energyCap = LazyOptional.of(() -> energy);
   private LazyOptional<IItemHandler> inventoryCap = LazyOptional.of(() -> inventory);
   private int blockPointer = 0;
-  List<BlockPos> outer = null;
+  private final BlockShape outerShape;
 
   @Override
   public Component getDisplayName() {
@@ -122,11 +124,7 @@ public class TilePeatFarm extends TileBlockEntityCyclic implements MenuProvider 
     if (energy.getEnergyStored() < cost && cost > 0) {
       return;
     }
-    if (outer == null) {
-      outer = getShape();
-      List<BlockPos> waterShape = ShapeUtil.squareHorizontalHollow(this.getBlockPos(), SIZE);
-      outer.addAll(waterShape);
-    }
+    List<BlockPos> outer = getOuterShape().blocks();
     for (int i = 0; i < PER_TICK; i++) {
       if (blockPointer < outer.size()) {
         BlockPos target = outer.get(blockPointer);
@@ -175,6 +173,18 @@ public class TilePeatFarm extends TileBlockEntityCyclic implements MenuProvider 
   public TilePeatFarm(BlockPos pos, BlockState state) {
     super(TileRegistry.PEAT_FARM.get(), pos, state);
     tank = new FluidTankBase(this, CAPACITY, isFluidValid());
+    outerShape = createShape(pos);
+  }
+
+  private static BlockShape createShape(BlockPos pos) {
+    List<BlockPos> visualShape = ShapeUtil.squareHorizontalHollow(pos, 7);
+    visualShape.addAll(ShapeUtil.squareHorizontalHollow(pos, 5));
+
+    List<BlockPos> fullShape = new ArrayList<>(visualShape);
+    List<BlockPos> waterShape = ShapeUtil.squareHorizontalHollow(pos, SIZE);
+    fullShape.addAll(waterShape);
+
+    return new BlockShape(fullShape, visualShape);
   }
 
   public Predicate<FluidStack> isFluidValid() {
@@ -186,14 +196,8 @@ public class TilePeatFarm extends TileBlockEntityCyclic implements MenuProvider 
     return Block.byItem(stack.getItem()) == BlockRegistry.PEAT_UNBAKED.get();
   }
 
-  public List<BlockPos> getShapeHollow() {
-    return getShape();
-  }
-
-  List<BlockPos> getShape() {
-    List<BlockPos> outer = ShapeUtil.squareHorizontalHollow(this.worldPosition, 7);
-    outer.addAll(ShapeUtil.squareHorizontalHollow(this.worldPosition, 5));
-    return outer;
+  public BlockShape getOuterShape() {
+    return outerShape;
   }
 
   @Override
