@@ -297,13 +297,7 @@ public class TileCrafter extends TileBlockEntityCyclic implements MenuProvider {
     for (int i = 0; i < gridHandler.getSlots(); i++) {
       craftMatrix.setItem(i, gridHandler.getStackInSlot(i).copy());//fake items anyway. but also jus do a copy
     }
-    List<CraftingRecipe> recipes = level.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING);
-    for (CraftingRecipe rec : recipes) {
-      if (rec.matches(craftMatrix, level)) {
-        return rec;
-      }
-    }
-    return null;
+    return level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, craftMatrix, level).orElse(null);
   }
 
   public static class FakeContainer extends AbstractContainerMenu {
