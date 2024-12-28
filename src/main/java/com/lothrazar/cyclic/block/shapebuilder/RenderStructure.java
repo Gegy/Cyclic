@@ -38,10 +38,5 @@ public class RenderStructure implements BlockEntityRenderer<TileStructure> {
         RenderBlockUtils.createBox(matrixStack, crd, Vec3.atLowerCornerOf(te.getBlockPos()));
       }
     }
-    else if (PreviewOutlineType.WIREFRAME.ordinal() == previewType) {
-      for (BlockPos crd : te.getShape()) {
-        RenderBlockUtils.createBox(matrixStack, crd, Vec3.atLowerCornerOf(te.getBlockPos()));
-      }
-    }
   }
 }
