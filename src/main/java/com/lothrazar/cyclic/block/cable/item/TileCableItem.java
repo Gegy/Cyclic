@@ -1,7 +1,7 @@
 package com.lothrazar.cyclic.block.cable.item;
 
+import java.util.EnumMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import com.lothrazar.cyclic.block.cable.CableBase;
 import com.lothrazar.cyclic.block.cable.EnumConnectType;
 import com.lothrazar.cyclic.block.cable.TileCableBase;
@@ -39,7 +39,7 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
       return stack.getItem() == ItemRegistry.FILTER_DATA.get();
     }
   };
-  private Map<Direction, LazyOptional<IItemHandler>> flow = new ConcurrentHashMap<>();
+  private final Map<Direction, LazyOptional<IItemHandler>> flow = new EnumMap<>(Direction.class);
 
   public TileCableItem(BlockPos pos, BlockState state) {
     super(TileRegistry.ITEM_PIPE.get(), pos, state);
