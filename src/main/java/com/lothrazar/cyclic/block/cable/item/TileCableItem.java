@@ -1,6 +1,7 @@
 package com.lothrazar.cyclic.block.cable.item;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 import com.lothrazar.cyclic.block.cable.CableBase;
 import com.lothrazar.cyclic.block.cable.EnumConnectType;
@@ -21,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.INBTSerializable;
@@ -29,6 +31,8 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 
 public class TileCableItem extends TileCableBase implements MenuProvider {
+
+  private static final Direction[] DIRECTIONS = Direction.values();
 
   private static final int FLOW_QTY = 64; // fixed, for non-extract motion
   private int extractQty = FLOW_QTY; // default
@@ -41,11 +45,17 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
   };
   private final Map<Direction, LazyOptional<IItemHandler>> flow = new EnumMap<>(Direction.class);
 
+  // Cached from BlockState - property lookups are fairly expensive
+  private final EnumSet<Direction> pushToSides = EnumSet.noneOf(Direction.class);
+  private final EnumSet<Direction> extractSides = EnumSet.noneOf(Direction.class);
+  private final EnumSet<Direction> blockedSides = EnumSet.noneOf(Direction.class);
+
   public TileCableItem(BlockPos pos, BlockState state) {
     super(TileRegistry.ITEM_PIPE.get(), pos, state);
     for (Direction f : Direction.values()) {
       flow.put(f, LazyOptional.of(TileCableItem::createHandler));
     }
+    onBlockStateSet(state);
   }
 
   public static void serverTick(Level level, BlockPos blockPos, BlockState blockState, TileCableItem e) {
@@ -60,19 +70,45 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
     return new ItemStackHandler(1);
   }
 
-  public void tick() {
-    for (Direction extractSide : Direction.values()) {
-      EnumConnectType connection = this.getBlockState().getValue(CableBase.FACING_TO_PROPERTY_MAP.get(extractSide));
-      if (connection.isExtraction()) {
-        final IItemHandler sideHandler = flow.get(extractSide).orElse(null);
-        tryExtract(sideHandler, extractSide, extractQty, filter);
+  @Override
+  public void setBlockState(BlockState state) {
+    super.setBlockState(state);
+    onBlockStateSet(state);
+  }
+
+  private void onBlockStateSet(BlockState state) {
+    pushToSides.clear();
+    extractSides.clear();
+    blockedSides.clear();
+    for (Direction direction : DIRECTIONS) {
+      EnumProperty<EnumConnectType> property = CableBase.FACING_TO_PROPERTY_MAP.get(direction);
+      if (!state.hasProperty(property)) {
+        // Should never get here with a non-cable state, but this is a Vanilla bug fixed in 1.21.1+
+        continue;
       }
+      EnumConnectType connection = state.getValue(property);
+      if (!connection.isExtraction() && !connection.isBlocked()) {
+        pushToSides.add(direction);
+      }
+      if (connection.isExtraction()) {
+        extractSides.add(direction);
+      }
+      if (connection.isBlocked()) {
+        blockedSides.add(direction);
+      }
+    }
+  }
+
+  public void tick() {
+    for (Direction extractSide : extractSides) {
+      final IItemHandler sideHandler = flow.get(extractSide).orElse(null);
+      tryExtract(sideHandler, extractSide, extractQty, filter);
     }
     normalFlow();
   }
 
   private void normalFlow() {
-    for (final Direction incomingSide : Direction.values()) {
+    for (final Direction incomingSide : DIRECTIONS) {
       moveItemsOnSide(incomingSide);
     }
   }
@@ -83,11 +119,7 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
       return;
     }
     for (final Direction outgoingSide : UtilDirection.getAllInDifferentOrder()) {
-      if (outgoingSide == incomingSide) {
-        continue;
-      }
-      EnumConnectType outgoingConnection = this.getBlockState().getValue(CableBase.FACING_TO_PROPERTY_MAP.get(outgoingSide));
-      if (outgoingConnection.isExtraction() || outgoingConnection.isBlocked()) {
+      if (outgoingSide == incomingSide || !pushToSides.contains(outgoingSide)) {
         continue;
       }
       if (this.moveItems(outgoingSide, FLOW_QTY, sideHandler)) {
@@ -101,7 +133,7 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
   @Override
   public <T> LazyOptional<T> getCapability(Capability<T> cap, Direction side) {
     if (side != null && cap == ForgeCapabilities.ITEM_HANDLER) {
-      if (!CableBase.isCableBlocked(this.getBlockState(), side)) {
+      if (!blockedSides.contains(side)) {
         return flow.get(side).cast();
       }
     }
