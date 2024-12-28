@@ -74,8 +74,10 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
   private void normalFlow() {
     // Label for loop for shortcutting, used to continue after items have been moved
     incomingSideLoop: for (final Direction incomingSide : Direction.values()) {
-      //in all cases sideHandler is required
       final IItemHandler sideHandler = flow.get(incomingSide).orElse(null);
+      if (sideHandler.getStackInSlot(0).isEmpty()) {
+        continue;
+      }
       for (final Direction outgoingSide : UtilDirection.getAllInDifferentOrder()) {
         if (outgoingSide == incomingSide) {
           continue;
