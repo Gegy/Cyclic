@@ -87,7 +87,7 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
         continue;
       }
       EnumConnectType connection = state.getValue(property);
-      if (!connection.isExtraction() && !connection.isBlocked()) {
+      if (!connection.isExtraction() && connection.isConnected()) {
         pushToSides.add(direction);
       }
       if (connection.isExtraction()) {
