@@ -72,27 +72,30 @@ public class TileCableItem extends TileCableBase implements MenuProvider {
   }
 
   private void normalFlow() {
-    // Label for loop for shortcutting, used to continue after items have been moved
-    incomingSideLoop: for (final Direction incomingSide : Direction.values()) {
-      final IItemHandler sideHandler = flow.get(incomingSide).orElse(null);
-      if (sideHandler.getStackInSlot(0).isEmpty()) {
+    for (final Direction incomingSide : Direction.values()) {
+      moveItemsOnSide(incomingSide);
+    }
+  }
+
+  private void moveItemsOnSide(Direction incomingSide) {
+    final IItemHandler sideHandler = flow.get(incomingSide).orElse(null);
+    if (sideHandler.getStackInSlot(0).isEmpty()) {
+      return;
+    }
+    for (final Direction outgoingSide : UtilDirection.getAllInDifferentOrder()) {
+      if (outgoingSide == incomingSide) {
         continue;
       }
-      for (final Direction outgoingSide : UtilDirection.getAllInDifferentOrder()) {
-        if (outgoingSide == incomingSide) {
-          continue;
-        }
-        EnumConnectType outgoingConnection = this.getBlockState().getValue(CableBase.FACING_TO_PROPERTY_MAP.get(outgoingSide));
-        if (outgoingConnection.isExtraction() || outgoingConnection.isBlocked()) {
-          continue;
-        }
-        if (this.moveItems(outgoingSide, FLOW_QTY, sideHandler)) {
-          continue incomingSideLoop; //if items have been moved then change side
-        }
+      EnumConnectType outgoingConnection = this.getBlockState().getValue(CableBase.FACING_TO_PROPERTY_MAP.get(outgoingSide));
+      if (outgoingConnection.isExtraction() || outgoingConnection.isBlocked()) {
+        continue;
       }
-      //if no items have been moved then move items in from adjacent
-      this.moveItems(incomingSide, FLOW_QTY, sideHandler);
+      if (this.moveItems(outgoingSide, FLOW_QTY, sideHandler)) {
+        return;
+      }
     }
+    //if no items have been moved then move items in from adjacent
+    this.moveItems(incomingSide, FLOW_QTY, sideHandler);
   }
 
   @Override
