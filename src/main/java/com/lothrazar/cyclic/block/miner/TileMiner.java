@@ -11,8 +11,8 @@ import com.lothrazar.cyclic.item.datacard.BlockstateCard;
 import com.lothrazar.cyclic.registry.BlockRegistry;
 import com.lothrazar.cyclic.registry.ItemRegistry;
 import com.lothrazar.cyclic.registry.TileRegistry;
+import com.lothrazar.cyclic.util.BlockShape;
 import com.lothrazar.library.cap.CustomEnergyStorage;
-import com.lothrazar.library.util.ShapeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -88,7 +88,7 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
   private boolean directionIsUp = false;
 
   @Nullable
-  private Shape shape;
+  private BlockShape shape;
 
   public TileMiner(BlockPos pos, BlockState state) {
     super(TileRegistry.MINER.get(), pos, state);
@@ -318,26 +318,11 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
     return diff * height;
   }
 
-  public Shape getShape() {
+  public BlockShape getShape() {
     if (shape == null) {
-      shape = computeShape();
+      shape = BlockShape.create(getFacingShapeCenter(radius), radius, heightWithDirection(), targetPos);
     }
     return shape;
-  }
-
-  private Shape computeShape() {
-    BlockPos center = getFacingShapeCenter(radius);
-    List<BlockPos> shape = ShapeUtil.squareHorizontalFull(center, radius);
-    List<BlockPos> hollowShape = ShapeUtil.squareHorizontalHollow(center, radius);
-    int heightWithDirection = heightWithDirection();
-    if (heightWithDirection != 0) {
-      shape = ShapeUtil.repeatShapeByHeight(shape, heightWithDirection);
-      hollowShape = ShapeUtil.repeatShapeByHeight(hollowShape, heightWithDirection);
-    }
-    if (targetPos != null) {
-      hollowShape.add(targetPos);
-    }
-    return new Shape(List.copyOf(shape), List.copyOf(hollowShape));
   }
 
   @Override
@@ -377,8 +362,5 @@ public class TileMiner extends TileBlockEntityCyclic implements MenuProvider {
       break;
     }
     invalidateShape();
-  }
-
-  public record Shape(List<BlockPos> blocks, List<BlockPos> hollowBlocks) {
   }
 }
